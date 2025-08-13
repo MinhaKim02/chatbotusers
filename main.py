@@ -8,7 +8,12 @@ app = FastAPI()
 
 # Firebase 초기화 (중복 방지)
 if not firebase_admin._apps:
-    cred_dict = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
+    raw_cred = os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"]
+    fixed_cred = raw_cred.replace('\\n', '\n')  # ← 이 줄이 핵심
+    cred_dict = json.loads(fixed_cred)
+    # cred_dict = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
+    # cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
+    # cred_dict = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred)
 
