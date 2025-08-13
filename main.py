@@ -45,3 +45,7 @@ async def save_user_info(req: Request, background_tasks: BackgroundTasks):
             ]
         }
     }
+
+@app.get("/")
+async def root():
+    return {"message": "Server is running!"}
