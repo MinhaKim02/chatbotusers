@@ -4,7 +4,6 @@ from firebase_admin import credentials, firestore
 from datetime import datetime, timezone, timedelta
 import os, requests
 from dotenv import load_dotenv
-import urllib.parse
 
 # .env 불러오기 (Render에서는 /etc/secrets/.env 위치)
 load_dotenv("/etc/secrets/.env")
@@ -29,6 +28,83 @@ def save_to_firestore(user_id: str, departure: str, arrival: str):
         "updatedAt": datetime.now(KST)
     }, merge=True)
 
+
+
+
+KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
+
+# 카카오 장소 검색 함수
+def get_location_info(query: str):
+    url = "https://dapi.kakao.com/v2/local/search/keyword.json"
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
+    params = {"query": query}
+
+    res = requests.get(url, headers=headers, params=params)
+    data = res.json()
+
+    if data.get("documents"):
+        doc = data["documents"][0]
+        return {
+            "name": doc["place_name"],
+            "address": doc.get("road_address_name") or doc.get("address_name"),
+            "x": doc["x"],  # 경도
+            "y": doc["y"]   # 위도
+        }
+    return None
+
+# Firestore 저장 함수 (기존 그대로 두고, 구조만 확장)
+def save_to_firestore(user_id, departure, arrival):
+    from google.cloud import firestore
+    db = firestore.Client()
+
+    dep_info = get_location_info(departure) if departure else None
+    arr_info = get_location_info(arrival) if arrival else None
+
+    data = {
+        "departure": {
+            "name": dep_info["name"] if dep_info else departure,
+            "address": dep_info["address"] if dep_info else None,
+            "x": dep_info["x"] if dep_info else None,
+            "y": dep_info["y"] if dep_info else None,
+        },
+        "arrival": {
+            "name": arr_info["name"] if arr_info else arrival,
+            "address": arr_info["address"] if arr_info else None,
+            "x": arr_info["x"] if arr_info else None,
+            "y": arr_info["y"] if arr_info else None,
+        }
+    }
+
+    db.collection("users").document(user_id).set(data, merge=True)
+
+@app.post("/save_user_info")
+async def save_user_info(req: Request, background_tasks: BackgroundTasks):
+    body = await req.json()
+    if 'userRequest' in body:  # 카카오톡 요청
+        user_id = body['userRequest']['user']['id']
+    else:  # 로컬 테스트
+        user_id = body.get('userId', 'test-user')
+
+    departure = body.get('action', {}).get('params', {}).get('departure', '')
+    arrival = body.get('action', {}).get('params', {}).get('arrival', '')
+
+    # 🔥 Firestore 저장을 백그라운드로 실행
+    background_tasks.add_task(save_to_firestore, user_id, departure, arrival)
+
+    return {
+        "version": "2.0",
+        "template": {
+            "outputs": [
+                {
+                    "simpleText": {
+                        "text": f"출발지: {departure}\n도착지: {arrival}\n(주소·좌표까지 저장 완료!)"
+                    }
+                }
+            ]
+        }
+    }
+
+'''
 @app.post("/save_user_info")
 async def save_user_info(req: Request, background_tasks: BackgroundTasks):
     body = await req.json()
@@ -55,11 +131,17 @@ async def save_user_info(req: Request, background_tasks: BackgroundTasks):
             ]
         }
     }
+'''
 
 @app.get("/")
 async def root():
     return {"message": "Server is running!"}
 
+
+
+
+
+'''
 KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
 
 @app.post("/validate_location")
@@ -103,3 +185,4 @@ async def validate_location(req: Request):
             "status": "fail",
             "value": ""
         }
+'''
