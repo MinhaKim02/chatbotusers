@@ -65,6 +65,15 @@ KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
 @app.post("/validate_location")
 async def validate_location(req: Request):
     body = await req.json()
+    print("DEBUG BODY:", body)   # 👈 로그 확인
+    query = body.get("value")
+    print("DEBUG QUERY:", query) # 👈 값 확인
+
+
+'''
+@app.post("/validate_location")
+async def validate_location(req: Request):
+    body = await req.json()
     query = body.get("value")  # 오픈빌더에서 사용자가 입력한 값
 
     # ✅ URL 인코딩
@@ -91,3 +100,4 @@ async def validate_location(req: Request):
             "status": "fail",
             "value": ""
         }
+'''
