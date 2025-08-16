@@ -1,20 +1,19 @@
 from fastapi import FastAPI, Request, BackgroundTasks
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime
-import os, json
+from datetime import datetime, timezone, timedelta
+import os
+from dotenv import load_dotenv
+
+# .env 불러오기 (Render에서는 /etc/secrets/.env 위치)
+load_dotenv("/etc/secrets/.env")
 
 app = FastAPI()
 
 # Firebase 초기화 (중복 방지)
 if not firebase_admin._apps:
-    raw_cred = os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"]
-    fixed_cred = raw_cred.replace('\\n', '\n')  # ← 이 줄이 핵심
-    cred_dict = json.loads(fixed_cred)
-    # cred_dict = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
-    # cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
-    # cred_dict = json.loads(os.environ["FIREBASE_SERVICE_ACCOUNT_JSON"])
-    cred = credentials.Certificate(cred_dict)
+    key_path = os.getenv("FIREBASE_KEY_PATH")  # .env에서 읽어옴
+    cred = credentials.Certificate(key_path)   # 파일 경로 전달
     firebase_admin.initialize_app(cred)
 
 db = firestore.client()
@@ -22,18 +21,23 @@ db = firestore.client()
 # Firestore 저장 로직 분리
 def save_to_firestore(user_id: str, departure: str, arrival: str):
     doc_ref = db.collection("users").document(user_id)
+    KST = timezone(timedelta(hours=9))
     doc_ref.set({
         "departure_text": departure,
         "arrival_text": arrival,
-        "updatedAt": datetime.utcnow()
+        "updatedAt": datetime.now(KST)
     }, merge=True)
 
 @app.post("/save_user_info")
 async def save_user_info(req: Request, background_tasks: BackgroundTasks):
     body = await req.json()
-    user_id = body['userRequest']['user']['id']
-    departure = body['action']['params'].get('departure')
-    arrival = body['action']['params'].get('arrival')
+    if 'userRequest' in body:  # 카카오 요청
+        user_id = body['userRequest']['user']['id']
+    else:  # 로컬 테스트
+        user_id = body.get('userId', 'test-user')
+
+    departure = body.get('action', {}).get('params', {}).get('departure', '')
+    arrival = body.get('action', {}).get('params', {}).get('arrival', '')
 
     # 🔥 백그라운드에서 저장 처리 (응답은 미리 보냄)
     background_tasks.add_task(save_to_firestore, user_id, departure, arrival)
