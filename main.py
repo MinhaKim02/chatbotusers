@@ -65,35 +65,41 @@ KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
 @app.post("/validate_location")
 async def validate_location(req: Request):
     body = await req.json()
-    value = body.get("value")
+    query_data = body.get("value")
 
-    # value가 dict 형태로 들어올 때 처리
-    if isinstance(value, dict):
-        query = value.get("resolved") or value.get("origin")
+    # 디버깅: OpenBuilder에서 넘어온 원본 값 찍기
+    print("DEBUG BODY:", body)
+    print("DEBUG VALUE:", query_data)
+
+    # value가 dict일 수 있으니까 안전하게 처리
+    if isinstance(query_data, dict):
+        query = query_data.get("resolved") or query_data.get("origin")
     else:
-        query = value  # 혹시 문자열로 올 경우 대비
+        query = query_data
 
-    if not query:
-        return {"status": "fail", "value": ""}
+    print("DEBUG QUERY:", query)  # 실제 검색어 확인
 
-    encoded_query = urllib.parse.quote(query)
-    url = f"https://dapi.kakao.com/v2/local/search/keyword.json?query={encoded_query}"
+    # 카카오 API 요청 (requests가 자동 인코딩 해줌)
+    url = "https://dapi.kakao.com/v2/local/search/keyword.json"
     headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
+    params = {"query": query}
 
-    res = requests.get(url, headers=headers)
+    res = requests.get(url, headers=headers, params=params)
     data = res.json()
 
+    # 디버깅: API 응답 확인
+    print("DEBUG RESPONSE:", data)
+
     if data.get("documents"):
-        first = data["documents"][0]
-        place_name = first["place_name"]
-        address = first.get("road_address_name") or first.get("address_name")
-        x, y = first["x"], first["y"]
+        place_name = data["documents"][0]["place_name"]
+        address = data["documents"][0].get("road_address_name") or data["documents"][0].get("address_name")
 
         return {
             "status": "success",
-            "value": f"{place_name} ({address})",
-            "x": x,
-            "y": y
+            "value": f"{place_name} ({address})"
         }
     else:
-        return {"status": "fail", "value": ""}
+        return {
+            "status": "fail",
+            "value": ""
+        }
