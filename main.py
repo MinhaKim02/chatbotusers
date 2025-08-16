@@ -65,20 +65,18 @@ KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
 @app.post("/validate_location")
 async def validate_location(req: Request):
     body = await req.json()
-    print("DEBUG BODY:", body)   # 👈 로그 확인
-    query = body.get("value")
-    print("DEBUG QUERY:", query) # 👈 값 확인
+    value = body.get("value")
 
+    # value가 dict 형태로 들어올 때 처리
+    if isinstance(value, dict):
+        query = value.get("resolved") or value.get("origin")
+    else:
+        query = value  # 혹시 문자열로 올 경우 대비
 
-'''
-@app.post("/validate_location")
-async def validate_location(req: Request):
-    body = await req.json()
-    query = body.get("value")  # 오픈빌더에서 사용자가 입력한 값
+    if not query:
+        return {"status": "fail", "value": ""}
 
-    # ✅ URL 인코딩
     encoded_query = urllib.parse.quote(query)
-
     url = f"https://dapi.kakao.com/v2/local/search/keyword.json?query={encoded_query}"
     headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
 
@@ -86,18 +84,16 @@ async def validate_location(req: Request):
     data = res.json()
 
     if data.get("documents"):
-        # ✅ 첫 번째 검색 결과만 사용
-        top = data["documents"][0]
-        place_name = top["place_name"]
-        address = top.get("road_address_name") or top.get("address_name")
+        first = data["documents"][0]
+        place_name = first["place_name"]
+        address = first.get("road_address_name") or first.get("address_name")
+        x, y = first["x"], first["y"]
 
         return {
             "status": "success",
-            "value": f"{place_name} ({address})"
+            "value": f"{place_name} ({address})",
+            "x": x,
+            "y": y
         }
     else:
-        return {
-            "status": "fail",
-            "value": ""
-        }
-'''
+        return {"status": "fail", "value": ""}
