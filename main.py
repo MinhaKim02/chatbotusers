@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, BackgroundTasks
 import firebase_admin
 from firebase_admin import credentials, firestore
 from datetime import datetime, timezone, timedelta
-import os
+import os, requests
 from dotenv import load_dotenv
 
 # .env 불러오기 (Render에서는 /etc/secrets/.env 위치)
@@ -58,3 +58,32 @@ async def save_user_info(req: Request, background_tasks: BackgroundTasks):
 @app.get("/")
 async def root():
     return {"message": "Server is running!"}
+
+KAKAO_REST_API_KEY = os.getenv("KAKAO_REST_API_KEY")
+
+@app.post("/validate_location")
+async def validate_location(req: Request):
+    body = await req.json()
+    query = body.get("value")  # 오픈빌더에서 사용자가 입력한 값
+
+    url = "https://dapi.kakao.com/v2/local/search/keyword.json"
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
+    params = {"query": query}
+
+    res = requests.get(url, headers=headers, params=params)
+    data = res.json()
+
+    if data.get("documents"):
+        # 검색 결과가 있을 경우 첫 번째 주소 반환
+        place_name = data["documents"][0]["place_name"]
+        address = data["documents"][0].get("road_address_name") or data["documents"][0].get("address_name")
+
+        return {
+            "status": "success",
+            "value": f"{place_name} ({address})"  # 변환된 값
+        }
+    else:
+        return {
+            "status": "fail",
+            "value": ""
+        }
