@@ -4,6 +4,7 @@ from firebase_admin import credentials, firestore
 from datetime import datetime, timezone, timedelta
 import os, requests
 from dotenv import load_dotenv
+import urllib.parse
 
 # .env 불러오기 (Render에서는 /etc/secrets/.env 위치)
 load_dotenv("/etc/secrets/.env")
@@ -66,21 +67,24 @@ async def validate_location(req: Request):
     body = await req.json()
     query = body.get("value")  # 오픈빌더에서 사용자가 입력한 값
 
-    url = "https://dapi.kakao.com/v2/local/search/keyword.json"
-    headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
-    params = {"query": query}
+    # ✅ URL 인코딩
+    encoded_query = urllib.parse.quote(query)
 
-    res = requests.get(url, headers=headers, params=params)
+    url = f"https://dapi.kakao.com/v2/local/search/keyword.json?query={encoded_query}"
+    headers = {"Authorization": f"KakaoAK {KAKAO_REST_API_KEY}"}
+
+    res = requests.get(url, headers=headers)
     data = res.json()
 
     if data.get("documents"):
-        # 검색 결과가 있을 경우 첫 번째 주소 반환
-        place_name = data["documents"][0]["place_name"]
-        address = data["documents"][0].get("road_address_name") or data["documents"][0].get("address_name")
+        # ✅ 첫 번째 검색 결과만 사용
+        top = data["documents"][0]
+        place_name = top["place_name"]
+        address = top.get("road_address_name") or top.get("address_name")
 
         return {
             "status": "success",
-            "value": f"{place_name} ({address})"  # 변환된 값
+            "value": f"{place_name} ({address})"
         }
     else:
         return {
