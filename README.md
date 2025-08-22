@@ -92,5 +92,3 @@ FIREBASE_KEY_PATH=/etc/secrets/firebase_key.json
 * 사용자 알림톡 자동 발송 기능
 * DB 마이그레이션 (Firestore → MySQL/Aiven 등)
 * 관리자용 대시보드
-
-민하님, 혹시 제가 `requirements.txt`까지 같이 만들어드릴까요?
